@@ -23,4 +23,9 @@ const (
 	// which is the namespace where the watch activity happens.
 	// this value is empty if the operator is running with clusterScope.
 	WatchNamespaceEnvVar = "WATCH_NAMESPACE"
+
+	// WatchNamespaceLabelsEnvVar is the constant for env variable WATCH_NAMESPACE_LABELS
+	// which is the labels of the namespace where the watch activity happens.
+	// this value is empty if the operator is using WatchNamespaceEnvVar
+	WatchNamespaceLabelsEnvVar = "WATCH_NAMESPACE_LABELS"
 )

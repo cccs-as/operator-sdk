@@ -243,6 +243,18 @@ func configureWatchNamespaces(options *manager.Options, log logr.Logger) {
 			}
 		}
 	} else {
+		labelSelectors := os.Getenv(k8sutil.WatchNamespaceLabelsEnvVar)
+
+		if labelSelectors != "" {
+			labelSelectors, err := labels.Parse(os.Getenv(k8sutil.WatchNamespaceLabelsEnvVar))
+			if err != nil {
+				log.Error(errors.New("failed to parse namespace labels env var"), "unsupported string")
+			}
+			log.Info("Watching namespaces", "labels", labelSelectors)
+			namespaceConfigs[metav1.NamespaceAll] = cache.Config{
+				LabelSelector: labelSelectors,
+			}
+		}
 		log.Info("Watching all namespaces")
 		// in order to properly establish cluster level watches
 		// we need to override the default label selectors configured
