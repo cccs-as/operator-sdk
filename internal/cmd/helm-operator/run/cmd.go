@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/distribution/context"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +38,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	helmClient "github.com/operator-framework/operator-sdk/internal/helm/client"
 	"github.com/operator-framework/operator-sdk/internal/helm/controller"
@@ -246,21 +250,41 @@ func configureWatchNamespaces(options *manager.Options, log logr.Logger) {
 		labelSelectors := os.Getenv(k8sutil.WatchNamespaceLabelsEnvVar)
 
 		if labelSelectors != "" {
+			log.Info("Watching namespaces", "labels", labelSelectors)
 			labelSelectors, err := labels.Parse(os.Getenv(k8sutil.WatchNamespaceLabelsEnvVar))
 			if err != nil {
 				log.Error(errors.New("failed to parse namespace labels env var"), "unsupported string")
 			}
-			log.Info("Watching namespaces", "labels", labelSelectors)
-			namespaceConfigs[metav1.NamespaceAll] = cache.Config{
-				LabelSelector: labelSelectors,
+
+			config, err := rest.InClusterConfig()
+			if err != nil {
+				log.Error(err, "Failed to get in-cluster config")
 			}
-		}
-		log.Info("Watching all namespaces")
-		// in order to properly establish cluster level watches
-		// we need to override the default label selectors configured
-		// in later config steps
-		namespaceConfigs[metav1.NamespaceAll] = cache.Config{
-			LabelSelector: labels.Everything(),
+
+			client, err := kubernetes.NewForConfig(config)
+			if err != nil {
+				log.Error(err, "Failed to get in-cluster config")
+			}
+
+			namespaces, err := client.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{LabelSelector: labelSelectors.String()})
+			if err != nil {
+				log.Error(err, "Failed to get namespaces")
+			}
+			log.Info("Found namespaces", "namespaces", namespaces.Items)
+			for _, namespace := range namespaces.Items {
+				namespaceConfigs[namespace.Name] = cache.Config{
+					LabelSelector: labels.Everything(),
+				}
+			}
+
+		} else {
+			log.Info("Watching all namespaces")
+			// in order to properly establish cluster level watches
+			// we need to override the default label selectors configured
+			// in later config steps
+			namespaceConfigs[metav1.NamespaceAll] = cache.Config{
+				LabelSelector: labels.Everything(),
+			}
 		}
 	}
 
